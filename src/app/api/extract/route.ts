@@ -4,6 +4,9 @@ import { segmentParagraph } from '@/lib/segmenter';
 import { translateBatch, translateText } from '@/lib/translator';
 import type { ArticleData, Paragraph, ExtractResponse, ExtractError } from '@/lib/types';
 
+// Vercel free tier allows up to 60s for serverless functions
+export const maxDuration = 60;
+
 const DEFAULT_CHAR_LIMIT = 2000;
 
 function truncateParagraphs(
