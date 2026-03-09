@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: #ffffff;
+  --color-foreground: #000000;
+  --color-muted: #555555;
+  --color-border: #e0e0e0;
+  --color-highlight: rgba(0, 0, 0, 0.08);
+}
+
+body {
+  background: #ffffff;
+  color: #000000;
+  font-family: Georgia, 'Times New Roman', serif;
+}
