@@ -1,5 +1,5 @@
 import { Readability } from '@mozilla/readability';
-import { JSDOM } from 'jsdom';
+import { parseHTML } from 'linkedom';
 
 interface ExtractedArticle {
   title: string;
@@ -23,8 +23,14 @@ export async function extractArticle(url: string): Promise<ExtractedArticle> {
   }
 
   const html = await response.text();
-  const dom = new JSDOM(html, { url });
-  const reader = new Readability(dom.window.document);
+
+  // Use linkedom to parse — works in serverless environments (pure JS, no native deps)
+  const { document } = parseHTML(html);
+
+  // Set documentURI for Readability (used for relative URL resolution)
+  Object.defineProperty(document, 'documentURI', { value: url });
+
+  const reader = new Readability(document as unknown as Document);
   const article = reader.parse();
 
   if (!article || !article.content?.trim()) {
@@ -34,28 +40,26 @@ export async function extractArticle(url: string): Promise<ExtractedArticle> {
   }
 
   // Parse the Readability HTML output to extract paragraphs from block elements
-  const contentDom = new JSDOM(article.content);
-  const doc = contentDom.window.document;
+  const { document: contentDoc } = parseHTML(article.content);
 
-  // Collect text from block-level elements that represent paragraphs
   const blockTags = ['P', 'LI', 'BLOCKQUOTE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6'];
-  const blocks = doc.querySelectorAll(blockTags.join(','));
+  const blocks = contentDoc.querySelectorAll(blockTags.join(','));
 
   const paragraphs: string[] = [];
 
   if (blocks.length > 0) {
-    blocks.forEach((el) => {
+    blocks.forEach((el: Element) => {
       const text = (el.textContent || '').replace(/\s+/g, ' ').trim();
       if (text) paragraphs.push(text);
     });
   }
 
-  // Fallback: if no block elements found, split textContent on double newlines
+  // Fallback: split textContent on double newlines
   if (paragraphs.length === 0) {
     const fallback = (article.textContent || '')
       .split(/\n\s*\n/)
-      .map((p) => p.replace(/\s+/g, ' ').trim())
-      .filter((p) => p.length > 0);
+      .map((p: string) => p.replace(/\s+/g, ' ').trim())
+      .filter((p: string) => p.length > 0);
     paragraphs.push(...fallback);
   }
 
