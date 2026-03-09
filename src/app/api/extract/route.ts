@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { extractArticle } from '@/lib/extractor';
 import { segmentParagraph } from '@/lib/segmenter';
 import { translateBatch, translateText } from '@/lib/translator';
+import { validateUrl } from '@/lib/url-validator';
 import type { ArticleData, Paragraph, ExtractResponse, ExtractError } from '@/lib/types';
 
 // Vercel free tier allows up to 60s for serverless functions
@@ -53,10 +54,10 @@ export async function POST(
       return NextResponse.json({ success: false, error: 'URL is required' }, { status: 400 });
     }
 
-    try {
-      new URL(url);
-    } catch {
-      return NextResponse.json({ success: false, error: 'Invalid URL' }, { status: 400 });
+    // Validate URL: scheme, hostname, and resolved IP
+    const validationError = await validateUrl(url);
+    if (validationError) {
+      return NextResponse.json({ success: false, error: validationError }, { status: 400 });
     }
 
     // Extract article — returns pre-split paragraphs from HTML structure
@@ -136,8 +137,15 @@ export async function POST(
 
     return NextResponse.json({ success: true, data });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'An unexpected error occurred';
     console.error('Extract API error:', error);
+    // Don't leak internal error details to the client
+    const safeMessages = [
+      'Failed to fetch URL',
+      'Could not extract article content',
+      'No content could be extracted',
+    ];
+    const raw = error instanceof Error ? error.message : '';
+    const message = safeMessages.find((m) => raw.includes(m)) || 'Failed to process article';
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
